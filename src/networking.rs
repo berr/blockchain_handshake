@@ -1,4 +1,5 @@
 use crate::message::{Message, MessageKind};
+use crate::testing::encode_bytes;
 use anyhow::{bail, Result};
 use std::iter;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -63,6 +64,9 @@ pub async fn receive_message<R: AsyncRead + Unpin + Send>(
 
     let mut payload: Vec<u8> = iter::repeat(0).take(payload_size as usize).collect();
     reader.read_exact(payload.as_mut()).await?;
+
+    println!("Header: {}", encode_bytes(&header));
+    println!("Payload: {}", encode_bytes(&payload));
 
     let calculated_checksum = bitcoin_checksum(&payload);
 

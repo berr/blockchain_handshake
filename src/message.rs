@@ -330,15 +330,18 @@ struct BlockHeaderHash {
 
 #[derive(Clone, Debug)]
 pub struct GetHeadersMessage {
+    #[allow(dead_code)]
     version: u32,
+    #[allow(dead_code)]
     hashes: Vec<BlockHeaderHash>,
+    #[allow(dead_code)]
     stop_hash: BlockHeaderHash,
 }
 
 #[async_trait]
 impl SerializePayload for GetHeadersMessage {
-    async fn serialize<W: AsyncWrite + Unpin + Send>(&self, writer: &mut W) -> Result<()> {
-        todo!()
+    async fn serialize<W: AsyncWrite + Unpin + Send>(&self, _: &mut W) -> Result<()> {
+        todo!("Not used during handshake")
     }
 }
 
@@ -363,8 +366,8 @@ impl DeserializePayload for GetHeadersMessage {
 
 #[async_trait]
 impl SerializePayload for BlockHeaderHash {
-    async fn serialize<W: AsyncWrite + Unpin + Send>(&self, writer: &mut W) -> Result<()> {
-        todo!()
+    async fn serialize<W: AsyncWrite + Unpin + Send>(&self, _: &mut W) -> Result<()> {
+        todo!("Not used during handshake")
     }
 }
 
@@ -411,7 +414,7 @@ impl SerializePayload for WTxIdRelayMessage {
 
 #[async_trait]
 impl DeserializePayload for WTxIdRelayMessage {
-    async fn deserialize<R: AsyncRead + Unpin + Send>(reader: &mut R) -> Result<Self> {
+    async fn deserialize<R: AsyncRead + Unpin + Send>(_: &mut R) -> Result<Self> {
         // Nothing to deserialize
         Ok(Self)
     }
@@ -430,7 +433,7 @@ impl SerializePayload for SendAddrV2Message {
 
 #[async_trait]
 impl DeserializePayload for SendAddrV2Message {
-    async fn deserialize<R: AsyncRead + Unpin + Send>(reader: &mut R) -> Result<Self> {
+    async fn deserialize<R: AsyncRead + Unpin + Send>(_: &mut R) -> Result<Self> {
         // Nothing to deserialize
         Ok(Self)
     }

@@ -9,12 +9,26 @@ use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 
+const SUPPORTED_VERSION: i32 = 70016;
+const SUPPORTED_SERVICES: u64 = 1;
+
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub chain: Chain,
     pub version: i32,
     pub services: u64,
     pub user_agent: String,
+}
+
+impl ClientConfig {
+    pub fn default_with_user_agent(user_agent: String) -> Self {
+        Self {
+            chain: Chain::Main,
+            version: SUPPORTED_VERSION,
+            services: SUPPORTED_SERVICES,
+            user_agent,
+        }
+    }
 }
 
 pub struct BitcoinConnection<R, W> {
@@ -79,7 +93,8 @@ impl<R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send> BitcoinConnectio
         }
 
         if received_version.nonce == sent_nonce {
-            bail!("Handshake failed. Sent nonce is the same as received. Possible self connection. {0} = {1}",
+            bail!(
+                "Handshake failed. Sent nonce is the same as received. Self connection. {0} = {1}",
                 received_version.nonce,
                 sent_nonce,
             )
@@ -154,5 +169,130 @@ impl<R: AsyncRead + Unpin + Send, W: AsyncWrite + Unpin + Send> BitcoinConnectio
         }
 
         Ok(())
+    }
+}
+
+enum HandShakeSM {
+    Starting,
+    ReceivedVersion,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::connection::{BitcoinConnection, ClientConfig};
+    use crate::testing::decode_bytes;
+    use std::io::Cursor;
+
+    fn testing_client_config() -> ClientConfig {
+        ClientConfig::default_with_user_agent("TestingClient".to_string())
+    }
+
+    #[tokio::test]
+    /// Replicates the network communication from a test using a local blockchain node
+    async fn smoke_test_handshake_smoke() {
+        let config = testing_client_config();
+
+        let mut reader = vec![];
+        let mut writer = vec![];
+
+        let us = "10.102.3.0".parse().unwrap();
+        let us_port = 8333;
+
+        let them = "172.17.0.2".parse().unwrap();
+        let them_port = 8333;
+
+        reader.extend(decode_bytes("+b602XZlcnNpb24AAAAAAGYAAACx39uS"));
+        reader.extend(decode_bytes("gBEBAAkEAAAAAAAAJGkPZQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAkEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAogitpThFWBwQL1NhdG9zaGk6MjUuMC4wLwAAAAAB"));
+
+        reader.extend(decode_bytes("+b602Xd0eGlkcmVsYXkAAAAAAABd9uDi"));
+        reader.extend(decode_bytes(""));
+
+        reader.extend(decode_bytes("+b602XNlbmRhZGRydjIAAAAAAABd9uDi"));
+        reader.extend(decode_bytes(""));
+
+        reader.extend(decode_bytes("+b602XZlcmFjawAAAAAAAAAAAABd9uDi"));
+        reader.extend(decode_bytes(""));
+
+        reader.extend(decode_bytes("+b602XNlbmRjbXBjdAAAAAkAAADpL174"));
+        reader.extend(decode_bytes("AAIAAAAAAAAA"));
+
+        reader.extend(decode_bytes("+b602XBpbmcAAAAAAAAAAAgAAACwY0uh"));
+        reader.extend(decode_bytes("IrahJ/vs17E"));
+
+        reader.extend(decode_bytes("+b602WdldGhlYWRlcnMAAEUAAAAdNv5T"));
+        reader.extend(decode_bytes("gBEBAAFv4owKtvGzcsGmokauY/dPkx6DZeFaCJxo1hkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
+
+        reader.extend(decode_bytes("+b602WZlZWZpbHRlcgAAAAgAAABGhxVs"));
+        reader.extend(decode_bytes("NfCLAAAAAAA"));
+
+        let mut read_cursor = Cursor::new(&mut reader);
+        let write_cursor = Cursor::new(&mut writer);
+
+        BitcoinConnection::start(
+            config,
+            (us, us_port),
+            (them, them_port),
+            &mut read_cursor,
+            write_cursor,
+        )
+        .await
+        .unwrap();
+
+        // Should consume the whole input
+        assert_eq!(read_cursor.position() as usize, reader.len());
+    }
+
+    #[tokio::test]
+    async fn test_handshake_highlevel() {
+        let config = testing_client_config();
+
+        let mut reader = vec![];
+        let mut writer = vec![];
+
+        let us = "10.102.3.0".parse().unwrap();
+        let us_port = 8333;
+
+        let them = "172.17.0.2".parse().unwrap();
+        let them_port = 8333;
+
+        reader.extend(decode_bytes("+b602XZlcnNpb24AAAAAAGYAAACx39uS"));
+        reader.extend(decode_bytes("gBEBAAkEAAAAAAAAJGkPZQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAkEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAogitpThFWBwQL1NhdG9zaGk6MjUuMC4wLwAAAAAB"));
+
+        reader.extend(decode_bytes("+b602Xd0eGlkcmVsYXkAAAAAAABd9uDi"));
+        reader.extend(decode_bytes(""));
+
+        reader.extend(decode_bytes("+b602XNlbmRhZGRydjIAAAAAAABd9uDi"));
+        reader.extend(decode_bytes(""));
+
+        reader.extend(decode_bytes("+b602XZlcmFjawAAAAAAAAAAAABd9uDi"));
+        reader.extend(decode_bytes(""));
+
+        reader.extend(decode_bytes("+b602XNlbmRjbXBjdAAAAAkAAADpL174"));
+        reader.extend(decode_bytes("AAIAAAAAAAAA"));
+
+        reader.extend(decode_bytes("+b602XBpbmcAAAAAAAAAAAgAAACwY0uh"));
+        reader.extend(decode_bytes("IrahJ/vs17E"));
+
+        reader.extend(decode_bytes("+b602WdldGhlYWRlcnMAAEUAAAAdNv5T"));
+        reader.extend(decode_bytes("gBEBAAFv4owKtvGzcsGmokauY/dPkx6DZeFaCJxo1hkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
+
+        reader.extend(decode_bytes("+b602WZlZWZpbHRlcgAAAAgAAABGhxVs"));
+        reader.extend(decode_bytes("NfCLAAAAAAA"));
+
+        let mut read_cursor = Cursor::new(&mut reader);
+        let write_cursor = Cursor::new(&mut writer);
+
+        BitcoinConnection::start(
+            config,
+            (us, us_port),
+            (them, them_port),
+            &mut read_cursor,
+            write_cursor,
+        )
+        .await
+        .unwrap();
+
+        // Should consume the whole input
+        assert_eq!(read_cursor.position() as usize, reader.len());
     }
 }
