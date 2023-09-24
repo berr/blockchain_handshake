@@ -1,0 +1,36 @@
+services:
+  blockchain_node:
+    build: blockchain_node
+    ports:
+      - "8333:8333"
+    command: /root/bin/bitcoind -noconnect -listen -noonion -debug
+    healthcheck:
+      test: /root/wait-for-it.sh -h localhost -p 8333 -s
+
+  local_handshake:
+    build: .
+    command: cargo run --release blockchain_node
+    depends_on:
+      - blockchain_node
+
+  local_handshake_debug:
+    build: .
+    command: cargo run --release blockchain_node
+    environment:
+      - RUST_LOG=trace
+    depends_on:
+      - blockchain_node
+
+  handshake:
+    build: .
+    entrypoint: cargo run --release --
+
+  handshake_debug:
+    build: .
+    entrypoint: cargo run --release --
+    environment:
+      - RUST_LOG=trace
+
+  tests:
+    build: .
+    command: cargo test --release
